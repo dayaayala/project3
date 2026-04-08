@@ -2,7 +2,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import PopularTimesChart from "./components/PopularTimesChart";
 import { mockPlaces } from "./data/mockPlaces";
 import { getNearbyPlaces } from "./lib/places";
@@ -84,6 +84,44 @@ const heartMarkerIcon = L.divIcon({
   popupAnchor: [0, -8],
 });
 
+function ZoomResponsiveHeartMarkers({ places }: { places: Place[] }) {
+  const [zoom, setZoom] = useState(13);
+  useMapEvents({
+    zoomend(event) {
+      setZoom(event.target.getZoom());
+    },
+  });
+
+  const size = Math.max(12, Math.min(24, Math.round(zoom * 1.1)));
+  const icon = useMemo(
+    () =>
+      L.divIcon({
+        html: `<span class="heart-pin" style="font-size:${size}px" aria-hidden="true">♥</span>`,
+        className: "heart-pin-wrap",
+        iconSize: [size + 4, size + 4],
+        iconAnchor: [Math.round((size + 4) / 2), Math.round(size * 0.7)],
+        popupAnchor: [0, -Math.round(size * 0.4)],
+      }),
+    [size],
+  );
+
+  return (
+    <>
+      {places.map((place) => (
+        <Marker key={place.id} position={[place.lat, place.lon]} icon={icon}>
+          <Popup>
+            <strong>{place.name}</strong>
+            <br />
+            {place.address}
+            <br />
+            {busynessWord(place.busynessNow)}
+          </Popup>
+        </Marker>
+      ))}
+    </>
+  );
+}
+
 function SplashPage() {
   return (
     <main className="phone splash-screen">
@@ -164,9 +202,36 @@ function ResultsPage() {
   useEffect(() => {
     let cancelled = false;
     setLoadingResults(true);
-    getNearbyPlaces(location)
-      .then((latest) => {
-        if (!cancelled) setPlaces(latest);
+    const requestPreciseCoords = () =>
+      new Promise<{ lat: number; lon: number } | null>((resolve) => {
+        if (!("geolocation" in navigator)) {
+          resolve(null);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (position) =>
+            resolve({
+              lat: position.coords.latitude,
+              lon: position.coords.longitude,
+            }),
+          () => resolve(null),
+          {
+            enableHighAccuracy: true,
+            timeout: 7000,
+            maximumAge: 120000,
+          },
+        );
+      });
+
+    Promise.all([getNearbyPlaces(location), requestPreciseCoords()])
+      .then(async ([baseResults, precise]) => {
+        if (cancelled) return;
+        if (!precise) {
+          setPlaces(baseResults);
+          return;
+        }
+        const preciseResults = await getNearbyPlaces(location, precise);
+        if (!cancelled) setPlaces(preciseResults);
       })
       .catch(() => {
         if (!cancelled) setPlaces([]);
@@ -332,17 +397,7 @@ function MapPage() {
           attribution='&copy; OpenStreetMap contributors &copy; CARTO'
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
-        {places.map((place) => (
-          <Marker key={place.id} position={[place.lat, place.lon]} icon={heartMarkerIcon}>
-            <Popup>
-              <strong>{place.name}</strong>
-              <br />
-              {place.address}
-              <br />
-              {busynessWord(place.busynessNow)}
-            </Popup>
-          </Marker>
-        ))}
+        <ZoomResponsiveHeartMarkers places={places} />
       </MapContainer>
     </main>
   );

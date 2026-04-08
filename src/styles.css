@@ -1,7 +1,7 @@
 :root {
   font-family: "Dongle", sans-serif;
   color: #111;
-  background: #efefef;
+  background: #fff;
 }
 
 * {
@@ -13,6 +13,7 @@ body {
   min-height: 100vh;
   display: grid;
   place-items: center;
+  background: #fff;
 }
 
 a {
@@ -23,8 +24,8 @@ a {
   width: 360px;
   min-height: 640px;
   padding: 18px;
-  border-radius: 20px;
-  border: 1px solid #d8d8d8;
+  border-radius: 0;
+  border: none;
   background: #fff;
 }
 

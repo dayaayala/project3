@@ -49,6 +49,15 @@ function haversineMiles(aLat: number, aLon: number, bLat: number, bLon: number) 
   return earthRadiusMiles * c;
 }
 
+function applyDistanceOrigin(places: Place[], origin: Coords) {
+  return places
+    .map((p) => ({
+      ...p,
+      distanceMiles: Number(haversineMiles(origin.lat, origin.lon, p.lat, p.lon).toFixed(1)),
+    }))
+    .sort((a, b) => a.distanceMiles - b.distanceMiles);
+}
+
 function seededNoise(seed: string) {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) {
@@ -393,9 +402,11 @@ export async function getNearbyPlaces(query: string, preciseCoords?: Coords): Pr
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.value;
 
   try {
-    let center = preciseCoords ?? (await geocodeCityState(query));
+    let center = await geocodeCityState(query);
     if (!center) center = await geocodeWithOpenMeteo(query);
+    if (!center) center = preciseCoords ?? null;
     if (!center) return isKnoxvilleQuery(query) ? mockPlaces : [];
+    const distanceOrigin = preciseCoords ?? center;
 
     const [livePlaces, nominatimPlaces, coffeeBoostInitial] = await Promise.all([
       fetchOverpassPlaces(center, query),
@@ -411,26 +422,27 @@ export async function getNearbyPlaces(query: string, preciseCoords?: Coords): Pr
     }
 
     if (mergedLive.length > 0) {
-      const value = mergedLive.slice(0, 40);
+      const value = applyDistanceOrigin(mergedLive.slice(0, 40), distanceOrigin);
       placesCache.set(cacheKey, { value, ts: Date.now() });
       return value;
     }
 
     // Only use curated mock fallback for Knoxville searches.
     if (!isKnoxvilleQuery(query)) {
-      const value = generateUniversalFallback(center, query);
+      const value = applyDistanceOrigin(generateUniversalFallback(center, query), distanceOrigin);
       placesCache.set(cacheKey, { value, ts: Date.now() });
       return value;
     }
 
-    const value = [...mockPlaces]
+    const value = applyDistanceOrigin(
+      [...mockPlaces]
       .map((p) => ({
         ...p,
-        distanceMiles: Number(
-          haversineMiles(center.lat, center.lon, p.lat, p.lon).toFixed(1),
-        ),
+        distanceMiles: p.distanceMiles,
       }))
-      .sort((a, b) => a.distanceMiles - b.distanceMiles);
+      .sort((a, b) => a.distanceMiles - b.distanceMiles),
+      distanceOrigin,
+    );
     placesCache.set(cacheKey, { value, ts: Date.now() });
     return value;
   } catch {
