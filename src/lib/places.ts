@@ -89,11 +89,33 @@ function buildAddress(tags: Record<string, string>) {
   return street || tags.name || "Address unavailable";
 }
 
-function buildCityStateZip(tags: Record<string, string>) {
-  const city = tags["addr:city"] || tags["addr:town"] || tags["addr:village"] || "Unknown city";
-  const state = tags["addr:state"] || "ST";
+function buildCityStateZip(tags: Record<string, string>, fallbackLocation: string) {
+  const city =
+    tags["addr:city"] ||
+    tags["addr:town"] ||
+    tags["addr:village"] ||
+    tags["is_in:city"] ||
+    tags["contact:city"];
+  const state = tags["addr:state"] || tags["is_in:state"] || tags["contact:state"];
   const zip = tags["addr:postcode"] || "";
-  return `${city}, ${state}${zip ? ` ${zip}` : ""}`;
+  if (!city && !state) return fallbackLocation;
+  return `${city ?? fallbackLocation.split(",")[0]?.trim() ?? "Unknown city"}, ${state ?? "ST"}${zip ? ` ${zip}` : ""}`;
+}
+
+function normalizeName(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function mergeUniquePlaces(places: Place[]) {
+  const byComposite = new Map<string, Place>();
+  for (const place of places) {
+    const composite = `${place.kind}|${normalizeName(place.name)}|${place.lat.toFixed(3)}|${place.lon.toFixed(3)}`;
+    const existing = byComposite.get(composite);
+    if (!existing || place.address.length > existing.address.length) {
+      byComposite.set(composite, place);
+    }
+  }
+  return Array.from(byComposite.values()).sort((a, b) => a.distanceMiles - b.distanceMiles);
 }
 
 function isNearCenter(center: Coords, lat: number, lon: number) {
@@ -177,7 +199,7 @@ function generateUniversalFallback(center: Coords, query: string): Place[] {
     .sort((a, b) => a.distanceMiles - b.distanceMiles);
 }
 
-async function fetchOverpassPlaces(center: Coords): Promise<Place[]> {
+async function fetchOverpassPlaces(center: Coords, locationQuery: string): Promise<Place[]> {
   const radiusMeters = 22000;
   const query = `
 [out:json][timeout:25];
@@ -221,7 +243,7 @@ out center tags 120;
         id,
         name,
         address: buildAddress(tags),
-        cityStateZip: buildCityStateZip(tags),
+        cityStateZip: buildCityStateZip(tags, locationQuery),
         lat,
         lon,
         distanceMiles: Number(haversineMiles(center.lat, center.lon, lat, lon).toFixed(1)),
@@ -231,11 +253,9 @@ out center tags 120;
         closingTime: formatClosingTime(tags.opening_hours),
       } as Place;
     })
-    .filter((p): p is Place => Boolean(p))
-    .sort((a, b) => a.distanceMiles - b.distanceMiles)
-    .slice(0, 40);
+    .filter((p): p is Place => Boolean(p));
 
-  return places;
+  return mergeUniquePlaces(places).slice(0, 40);
 }
 
 async function fetchNominatimPlaces(query: string, center: Coords): Promise<Place[]> {
@@ -263,7 +283,7 @@ async function fetchNominatimPlaces(query: string, center: Coords): Promise<Plac
         const parts = item.display_name.split(",").map((x) => x.trim());
         const name = item.name || parts[0] || (target.kind === "library" ? "Library" : "Coffee Shop");
         const address = parts.slice(0, 2).join(", ") || "Address unavailable";
-        const cityStateZip = parts.slice(2, 5).join(", ") || query;
+        const cityStateZip = query;
         const id = `nom-${item.place_id}`;
         const popularTimes = synthesizePopularTimes(target.kind, id);
         const hour = new Date().getHours();
@@ -315,7 +335,7 @@ async function fetchCoffeeOnlyNominatim(query: string, center: Coords): Promise<
         id,
         name: item.name || parts[0] || "Coffee Shop",
         address: parts.slice(0, 2).join(", ") || "Address unavailable",
-        cityStateZip: parts.slice(2, 5).join(", ") || query,
+        cityStateZip: query,
         lat,
         lon,
         distanceMiles: Number(haversineMiles(center.lat, center.lon, lat, lon).toFixed(1)),
@@ -378,20 +398,16 @@ export async function getNearbyPlaces(query: string, preciseCoords?: Coords): Pr
     if (!center) return isKnoxvilleQuery(query) ? mockPlaces : [];
 
     const [livePlaces, nominatimPlaces, coffeeBoostInitial] = await Promise.all([
-      fetchOverpassPlaces(center),
+      fetchOverpassPlaces(center, query),
       fetchNominatimPlaces(query, center),
       fetchCoffeeOnlyNominatim(query, center),
     ]);
-    let mergedLive = Array.from(
-      new Map([...livePlaces, ...nominatimPlaces, ...coffeeBoostInitial].map((p) => [p.id, p])).values(),
-    ).sort((a, b) => a.distanceMiles - b.distanceMiles);
+    let mergedLive = mergeUniquePlaces([...livePlaces, ...nominatimPlaces, ...coffeeBoostInitial]);
 
     const coffeeCount = mergedLive.filter((p) => p.kind === "coffee").length;
     if (coffeeCount === 0) {
       const coffeeBoost = await fetchCoffeeOnlyNominatim(query, center);
-      mergedLive = Array.from(
-        new Map([...mergedLive, ...coffeeBoost].map((p) => [p.id, p])).values(),
-      ).sort((a, b) => a.distanceMiles - b.distanceMiles);
+      mergedLive = mergeUniquePlaces([...mergedLive, ...coffeeBoost]);
     }
 
     if (mergedLive.length > 0) {
