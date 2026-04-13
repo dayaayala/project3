@@ -59,11 +59,12 @@ a {
 }
 
 .wide {
-  width: 420px;
-  height: 640px;
+  width: min(360px, 100%);
+  height: min(640px, 100dvh);
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 10px;
+  gap: 8px;
+  padding: 14px;
 }
 
 .title {
@@ -461,10 +462,20 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .map-header h2 {
   margin: 0;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.map-header a {
+  color: #000;
+  font-size: 1.5rem;
+  line-height: 1;
+  text-decoration: none;
 }
 
 .start-btn {

@@ -390,7 +390,9 @@ function MapPage() {
     <main className="phone wide">
       <div className="map-header">
         <h2>map view</h2>
-        <Link to={`/results?${searchParams.toString()}`}>back to list</Link>
+        <Link to={`/results?${searchParams.toString()}`} aria-label="Back to list">
+          &lt;
+        </Link>
       </div>
       <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
         <TileLayer
