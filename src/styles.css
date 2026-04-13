@@ -59,7 +59,8 @@ a {
 }
 
 .wide {
-  width: min(400px, 100%);
+  width: 400px;
+  max-width: calc(100vw - 24px);
   height: min(640px, 100dvh);
   display: grid;
   grid-template-rows: auto 1fr;
@@ -459,6 +460,7 @@ a {
 }
 
 .map-header {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -473,9 +475,14 @@ a {
 
 .map-header a {
   color: #000;
-  font-size: 1.5rem;
+  font-size: 1.9rem;
   line-height: 1;
   text-decoration: none;
+}
+
+.map-canvas {
+  width: 100%;
+  min-width: 0;
 }
 
 .start-btn {
