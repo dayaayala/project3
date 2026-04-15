@@ -95,7 +95,7 @@ function formatClosingTime(openingHours?: string) {
 
 function buildAddress(tags: Record<string, string>) {
   const street = [tags["addr:housenumber"], tags["addr:street"]].filter(Boolean).join(" ").trim();
-  return street || tags.name || "Address unavailable";
+  return street || "Address unavailable";
 }
 
 function buildCityStateZip(tags: Record<string, string>, fallbackLocation: string) {
@@ -343,7 +343,9 @@ async function fetchCoffeeOnlyNominatim(query: string, center: Coords): Promise<
       return {
         id,
         name: item.name || parts[0] || "Coffee Shop",
-        address: parts.slice(0, 2).join(", ") || "Address unavailable",
+        // Keep one more segment so we retain road names (e.g. "380, White Bridge Pike"),
+        // while formatPlace.ts still strips duplicated venue names when present.
+        address: parts.slice(0, 3).join(", ") || "Address unavailable",
         cityStateZip: query,
         lat,
         lon,
