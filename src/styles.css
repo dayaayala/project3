@@ -687,12 +687,12 @@ a {
 
 .dot {
   margin-top: 2px;
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  min-height: 34px;
+  width: 28px;
+  height: 20px;
+  min-width: 28px;
+  min-height: 20px;
   aspect-ratio: 1 / 1;
-  flex: 0 0 34px;
+  flex: 0 0 20px;
   display: inline-block;
   background-color: #111;
   mask-image: url("/branding/map-heart.png");
