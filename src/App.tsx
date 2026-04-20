@@ -612,10 +612,9 @@ function LegendPage() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const wide = pathname === "/map";
   const showBottomNav = pathname !== "/location";
   return (
-    <div className={`phone-with-nav${wide ? " phone-with-nav--wide" : ""}`}>
+    <div className="phone-with-nav">
       <Outlet />
       {showBottomNav ? <BottomNav /> : null}
     </div>
