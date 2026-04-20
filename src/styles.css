@@ -685,6 +685,10 @@ a {
   color: #111;
 }
 
+.place-card .dot {
+  transform: translateX(4px);
+}
+
 .dot {
   margin-top: 2px;
   width: 28px;
